@@ -128,13 +128,90 @@ on a.userId = b.userId and b.gold_signup_date >= a.created_date ) ABC
 where Rnks = 1 ; 
 
 --Total AMount Spend By Each Customer BEfore they are a memebers..
+select a.UserID , COUNT(a.created_date)  as Numbers_of_order , sum(c.price) as Total_Amount_Spend_Before_SignUP 
+from sales a inner join goldusers_signup b
+on a.userid = b.userid and a.created_date <= b.gold_signup_date 
+inner join product c 
+on a.product_id = c.product_id 
+group by a.userID; 
 
 
+--Total AMount and total_Order Spend By Each Customer After they become a  memebers..
+select a.UserID , COUNT(a.created_date)  as Numbers_of_orders ,sum(c.price) as Total_Amount_Spend_Before_SignUP 
+from sales a inner join goldusers_signup b
+on a.userid = b.userid and a.created_date >= b.gold_signup_date 
+inner join product c 
+on a.product_id = c.product_id 
+group by a.userID; 
+; 
 
-select * from sales;
-select * from product;
-select * from goldusers_signup;
-select * from users;
+--If buying each products genrates points for eg 5rs = 2 zomato points and each products has different 
+-- purchasing points
+-- for eg => P1 5Rs = 1 Points , P2 10Rs = 5 Points , P3 5Rs = 1 Points
+select a.userID , b.product_id , sum(b.price) as Total_Buying ,
+case when b.product_id = 1 then (sum(b.price) / 5) * 1  
+when b.product_id = 2 then (sum(b.price) / 10) * 5 
+else (sum(b.price) / 5) * 1
+end as Zomato_Points_Based_ON_Products
+from sales a inner join product b
+on a.product_id = b.product_id 
+group by a.userID , b.product_id; 
+
+
+-- How many points have 1 customers 
+select userid , sum(Zomato_Points_Based_ON_Products) as Zomato_Credit_Points
+from (select a.userID , b.product_id , sum(b.price) as Total_Buying ,
+case when b.product_id = 1 then (sum(b.price) / 5) * 1  
+when b.product_id = 2 then (sum(b.price) / 10) * 5
+else (sum(b.price) / 5) * 1
+end as Zomato_Points_Based_ON_Products
+from sales a inner join product b
+on a.product_id = b.product_id 
+group by a.userID , b.product_id) ABC 
+group by userid; 
+
+--LEt say we can take assumption 2 Zomato Points = 5 Rs So hany rs are availablein customer wallet..
+select userid , sum(Zomato_Points_Based_ON_Products) as Zomato_Credit_Points , 
+((sum(Zomato_Points_Based_ON_Products)/5)/2) as Wallet_Amount
+from (select a.userID , b.product_id , sum(b.price) as Total_Buying ,
+case when b.product_id = 1 then (sum(b.price) / 5) * 1  
+when b.product_id = 2 then (sum(b.price) / 10) * 5
+else (sum(b.price) / 5) * 1
+end as Zomato_Points_Based_ON_Products
+from sales a inner join product b
+on a.product_id = b.product_id 
+group by a.userID , b.product_id) ABC 
+group by userid
+order by Wallet_Amount desc;
+
+
+--In the frist one year after a customer join the gold programe (including their joining dates) irrespective 
+-- of  what the customer has purchased they earn 5 Zomato points for every 10 Rs spent 
+--Who Earned More 1 or 3 and wyhat was their point earning intheir first Year...?
+select USERId , sum(price) as Total_Price ,( sum(price) / 5 ) as Zomato_Points
+from (select  a.userId , a.gold_signup_date , b.created_date , c.price ,
+DATEADD(day ,  365 , gold_signup_date  ) as New_Date
+from goldusers_signup a inner join sales b
+on a.userid = b.userid 
+inner join product c 
+on b.product_id = c.product_id ) A 
+where gold_signup_date <= created_date and created_date <= New_Date 
+group by USERId
+order by Zomato_Points desc; 
+
+
+-- Ranks All The Transaction of the Customers...
+select b.userId , a.product_id , a.price , b.created_date ,  DENSE_RANK() over(partition by b.userId order by b.created_date ) as Rnks
+from product a inner join sales b
+on a.product_id = b.product_id ; 
+
+--Ranks of all the Transaction of Customers when are a memeber of Zomato Gold and non Memeber as NA
+select a.userId , a.created_date , a.product_id  ,
+case when b.userId is not null then dense_rank() over(partition by a.userId order by created_date)
+else  b.userId
+end as MemberShip_Ranking
+from sales  a left join  goldusers_signup b 
+on a.userid = b.userid ; 
 
 
 
